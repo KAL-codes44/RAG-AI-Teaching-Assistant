@@ -1,24 +1,218 @@
-# How to use this  RAG AI Teaching assistant on your own data
-## Step 1 -- Collect your videos
-Move all your video files to the videos folder
+# RAG AI Teaching Assistant — Setup Guide
 
-## Step 2 -- Convert to mp3
-Convert all the video files to mp3 by running video_to_mp3
+This guide explains how to run the **RAG AI Teaching Assistant** on your **own video data**.  
+The pipeline converts video lectures into **text embeddings** that can later be used for **retrieval-augmented generation (RAG)**.
 
-This code scans a videos/ folder, extracts the tutorial number and name from each filename using regex and string splitting, then calls ffmpeg (a system-level video tool) via subprocess to strip the audio track and save it as an .mp3 into the audios/ folder it works sequentially (one video at a time) so it's not particularly fast, but ffmpeg itself is highly optimized for media conversion under the hood.
+---
 
-## Step 3 -- Convert mp3 to json
-converts all the mp3 files to json by running mp3_to_json
+# 1. Collect Your Videos
 
-This code loads OpenAI's Whisper large-v2 speech recognition model, loops through all .mp3 files in the audios/ folder, and for each one runs transcription + translation (from Hindi to English via task="translate")  Whisper processes each audio file and returns time-stamped segments which get packaged into structured chunks (with title, number, start/end times, and text) and stored in a data dict  though notably the file-saving code is commented out so currently no JSON is actually written to disk, and there's no parallelism so it processes one audio file at a time, making it slow for large collections since Whisper large-v2 is a heavyweight model that's accurate but computationally expensive.
+Move all your tutorial video files into the project **videos/** folder.
 
-## Step 4 -- Convert json files to Vectors
-Use the file preporcess_json to convert the json files to a dataframe with embeddings and save it as a joblib pickle.
+Example structure:
+project/
+│
+├── videos/
+│ ├── tutorial_01_intro.mp4
+│ ├── tutorial_02_variables.mp4
+│ └── tutorial_03_functions.mp4
+│
+├── audios/
+├── json/
+└── embeddings/
 
-This code reads text chunks from 67 JSON files, sends them 8 at a time in parallel (via ThreadPoolExecutor) to a locally running Ollama server (localhost:11434), which uses the bge-m3 model to convert each text chunk into a numerical vector (embedding), then collects all those vectors back in order and saves the final chunk+embedding pairs into a compressed embeddings.joblib file using pandas it's fast because instead of waiting for one embedding to finish before starting the next, it fires 8 HTTP requests simultaneously, hiding the network/model wait time behind parallelism.
 
-## Step 5 -- Prompt generation and feeding to LLM
-Read the joblib file and load it into the memory, Then create a relevant prompt as per the user query and feed it to the LLM.
+---
+
+# 2. Convert Videos to MP3
+
+Run the script:
+video_to_mp3.py
 
 
-This is the RAG (Retrieval-Augmented Generation) query engine that ties everything together  it loads the prebuilt embeddings database, converts the user's question into an embedding via bge-m3, computes cosine similarity between the query vector and all stored chunk vectors to find the 6 most relevant video segments, then constructs a structured prompt injecting those chunks (with title, video number, and timestamps) and sends it to Llama3 running locally on Ollama to generate a natural language answer that tells the user exactly which video and timestamp contains what they're looking for making it a fully local, private RAG pipeline where bge-m3 handles semantic search and Llama3 handles answer generation.
+This script performs the following steps:
+
+- Scans the **videos/** folder for video files
+- Extracts the **tutorial number and title** using regex and string parsing
+- Uses **FFmpeg** through Python's `subprocess` module
+- Extracts the **audio track from each video**
+- Saves the result as **.mp3 files in the audios/ folder**
+
+### Key Characteristics
+
+- Processes videos **sequentially (one at a time)**
+- Uses **FFmpeg**, which is highly optimized for media processing
+- Reliable but **not optimized for speed when many videos exist**
+
+---
+
+# 3. Convert MP3 to JSON Transcripts
+
+Run the script:
+mp3_to_json.py
+
+This script converts audio lectures into **structured transcript data**.
+
+### What the Script Does
+
+- Loads **OpenAI Whisper `large-v2` speech recognition model**
+- Iterates through all `.mp3` files inside **audios/**
+- Performs:
+
+  - **Speech transcription**
+  - **Translation from Hindi → English**
+
+This is done using:
+task="translate"
+
+
+### Output Structure
+
+Whisper returns **time-stamped segments**, which are stored as structured chunks containing:
+
+- Tutorial title
+- Tutorial number
+- Start timestamp
+- End timestamp
+- Transcript text
+
+Example chunk:
+{
+"title": "Python Functions",
+"tutorial_number": 5,
+"start": 12.5,
+"end": 18.3,
+"text": "Functions allow us to reuse code efficiently."
+}
+
+
+### Important Notes
+
+- The **JSON saving code is currently commented out**
+- No files are written to disk unless this section is enabled
+- Processing is **sequential**, so transcription may be **slow**
+- Whisper `large-v2` is **accurate but computationally expensive**
+
+---
+
+# 4. Convert JSON Data to Vector Embeddings
+
+Run the preprocessing script:
+pre_process_json.py
+
+
+This step converts transcript chunks into **vector embeddings** for semantic search.
+
+### How the Script Works
+
+1. Reads transcript chunks from **67 JSON files**
+2. Sends the text chunks to a **local Ollama server**
+http://localhost:11434
+
+
+3. Uses the embedding model:
+bge-m3
+
+
+4. Converts each text chunk into a **numerical embedding vector**
+
+### Parallel Processing
+
+The script uses:
+
+
+ThreadPoolExecutor
+
+
+to process **8 embedding requests simultaneously**.
+
+This significantly improves performance by:
+
+- Reducing waiting time
+- Running multiple embedding requests in parallel
+
+### Final Output
+
+The final dataset contains:
+
+- Text chunk
+- Metadata
+- Embedding vector
+
+This data is saved as a compressed file:
+
+
+embeddings.joblib
+
+
+using **Pandas + Joblib**.
+
+---
+
+# Pipeline Summary
+
+
+Videos (.mp4)
+│
+▼
+Audio Extraction
+(video_to_mp3.py)
+│
+▼
+MP3 Audio Files
+│
+▼
+Speech Recognition
+(mp3_to_json.py)
+│
+▼
+Transcript JSON
+│
+▼
+Embedding Generation
+(preprocess_json.py)
+│
+▼
+embeddings.joblib
+
+
+---
+
+# Technologies Used
+
+- **Python**
+- **FFmpeg**
+- **OpenAI Whisper**
+- **Ollama**
+- **bge-m3 embedding model**
+- **Pandas**
+- **Joblib**
+- **ThreadPoolExecutor**
+
+---
+
+# Notes
+
+- Whisper `large-v2` requires **significant GPU/CPU resources**
+- Embedding generation requires **Ollama running locally**
+- Parallel embedding improves speed but depends on **system resources**
+
+---
+
+# Future Improvements
+
+Possible enhancements to the pipeline:
+
+- Enable **JSON saving**
+- Add **parallel Whisper transcription**
+- Implement **GPU acceleration**
+- Add **vector database integration (FAISS / Chroma / Weaviate)**
+- Build a **chat interface for the RAG assistant**
+
+---
+
+# Result
+
+After completing these steps, you will have a **fully prepared embedding dataset** that can be used to build a **Retrieval-Augmented Generation (RAG) AI teaching assistant** capable of answering questions based on your video lectures.
+
+
