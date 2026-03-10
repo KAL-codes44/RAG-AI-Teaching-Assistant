@@ -153,28 +153,27 @@ using **Pandas + Joblib**.
 
 
 Videos (.mp4)
-│
-▼
+      │
+      ▼
 Audio Extraction
 (video_to_mp3.py)
-│
-▼
+      │
+      ▼
 MP3 Audio Files
-│
-▼
+      │
+      ▼
 Speech Recognition
 (mp3_to_json.py)
-│
-▼
+      │
+      ▼
 Transcript JSON
-│
-▼
+      │
+      ▼
 Embedding Generation
 (preprocess_json.py)
-│
-▼
+      │
+      ▼
 embeddings.joblib
-
 
 ---
 
@@ -214,5 +213,6 @@ Possible enhancements to the pipeline:
 # Result
 
 After completing these steps, you will have a **fully prepared embedding dataset** that can be used to build a **Retrieval-Augmented Generation (RAG) AI teaching assistant** capable of answering questions based on your video lectures.
+
 
 
